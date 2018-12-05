@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ZN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+    <link href="https://necolas.github.io/normalize.css/8.0.1/normalize.css"></head>
+    <link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.js"></script>
+    <!--<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>-->
+    <script src="https://cdn.bootcss.com/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://cdn.bootcss.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+    <title>tp5根据数据库字段生成validate规则</title>
+    <style>
+        td span{
+            display: inline-block;
+            overflow: hidden;
+        }
+        td a{
+            color: red;
+        }
+    </style>
+</head>
+<body>
+
+    <div>
+        <label>数据表：</label>
+        <select name="table_name">
+            <option value="0">--请选择表--</option>
+            {$tables|default=''}
+        </select>
+        <a href="#code" class="btn btn-primary btn-lg" onclick="createCode()" >生成</a>
+        <input type="button" class="btn btn-primary btn-lg" value="根据设置生成" onclick="createCodeBySetting();">
+    </div>
+    <p><a target="_blank" href="https://www.kancloud.cn/manual/thinkphp5/129356">内置规则手册</a></p>
+
+
+    <datalist id="state_list">
+        <option>require</option>
+        <option>number</option>
+        <option>float</option>
+        <option>boolean</option>
+        <option>email</option>
+        <option>array</option>
+        <option>accepted</option>
+        <option>date</option>
+        <option>alpha</option>
+        <option>alphaNum</option>
+        <option>alphaDash</option>
+        <option>chs</option>
+        <option>chsAlpha</option>
+        <option>chsAlphaNum</option>
+        <option>chsDash</option>
+        <option>activeUrl</option>
+        <option>url</option>
+        <option>ip</option>
+        <option>dateFormat:y-m-d</option>
+        <option>in</option>
+        <option>notIn</option>
+        <option>between</option>
+        <option>notBetween</option>
+        <option>length</option>
+        <option>max</option>
+        <option>min</option>
+        <option>after</option>
+        <option>before</option>
+        <option>expire</option>
+        <option>allowIp</option>
+        <option>denyIp</option>
+        <option>confirm</option>
+        <option>different</option>
+        <option>eq</option>
+        <option>egt</option>
+        <option>gt</option>
+        <option>elt</option>
+        <option>lt</option>
+        <option>filter</option>
+        <option>behavior</option>
+        <option>unique</option>
+        <option>requireIf</option>
+        <option>isMobile</option><!--验证手机号格式-->
+    </datalist>
+
+
+    <table id="setting" class="table table-hover table-bordered">
+
+    </table>
+    <textarea rows="15" style="width: 90%;" id="code"></textarea>
+</body>
+</html>
+<script>
+
+
+
+    function createCode(){
+        var table_name = $('select[name=table_name]').val();
+        if(table_name == 0 || table_name == ''){
+            return false;
+        }
+        var fields = [];
+        $.ajaxSettings.async = false;
+        $.get("{:url('index/doPost')}",{table_name : table_name},function(res){
+            fields = res;
+        });
+        $.ajaxSettings.async = true;
+        getTablesField(fields);
+    }
+
+    function getTablesField(fields){
+        var space = '    ',
+            setting = '<tbody><tr>' +
+                '<th><input type="checkbox" name="all" value="" checked></th>' +
+                '<th>field_name</th>' +
+                '<th>comment</th>\n' +
+                '<th>validate</th>\n' +
+                '</tr>',
+            code = space+'protected $rule = [\n';
+        for(var item in fields){
+            var val = fields[item],
+                reg = getRule(val.type,val.comment,val.length,item);
+            setting += '<tr>' +
+                '<td><input type="checkbox" name="field" checked value="'+item+'"></td>' +
+                '<td><input type="text" name="name" value="'+item+'"></td>' +
+                '<td><input type="text" name="comment" value="'+val.comment+'"></td>' + reg.setting +
+                '</tr>';
+            code += space+space+"['"+item+"','"+reg.rule+"','"+reg.msg+"'],\n";
+
+        }
+        setting += '</tbody>';
+        code += space+']\n';
+        var len = code.split("\n").length+3;
+        $('#code').val(code).attr('rows',len);
+        $('#setting').empty();
+        $('#setting').append($(setting));
+
+    }
+
+    function getRule(type,comment,length,name){
+        var rule = 'require',
+            msg = '请输入'+comment,
+            int = ['TINYINT','BIT','BOOL','SMALLINT','INT','INTEGER','BIGINT'],
+            float = ['FLOAT','DOUBLE','DOUBLE PRECISION','REAL','DECIMAL','DEC','NUMERIC'],
+            str = ['CHAR','VARCHAR','TINYBLOB','TINYTEXT','BLOB','TEXT','MEDIUMBLOB','MEDIUMTEXT','LONGBLOB','LONGTEXT','ENUM','SET'],
+            setting = '<td><span><a class="reduce" href="#">[ - ]</a><input type="text" name="'+name+'[]" value="require" list="state_list"><a class="add" href="#">[ + ]</a></span>';
+        if( int.indexOf(type.toUpperCase()) !=-1){
+            rule += '|integer';
+            msg += "|"+comment+"必须为整数";
+            setting += '<span><a class="reduce" href="#">[ - ]</a><input type="text" name="'+name+'[]" value="integer" list="state_list"><a class="add" href="#">[ + ]</a></span>';
+
+        }
+        if( float.indexOf(type.toUpperCase()) !=-1){
+            rule += '|number';
+            msg += "|"+comment+"必须为数字";
+            setting += '<span><a class="reduce" href="#">[ - ]</a><input type="text" name="'+name+'[]" value="number" list="state_list"><a class="add" href="#">[ + ]</a></span>';
+
+        }
+        if( str.indexOf(type.toUpperCase()) !=-1){
+            rule += length>0?'|max:'+length:'';
+            setting += length>0?'<span><a class="reduce" href="#">[ - ]</a><input type="text" name="'+name+'[]" value="max:'+length+'" list="state_list"><a class="add" href="#">[ + ]</a></span>':'';
+            msg += length>0?"|"+comment+"字数不能超"+length:'';
+
+        }
+        setting += '</td>';
+        return {
+            rule: rule,
+            msg: msg,
+            setting : setting,
+        };
+
+    }
+
+    function createCodeBySetting(){
+        var fields = {};
+        $("#setting tr").each(function(){
+            console.log($(this).find('input[name=field]').is(':checked'));
+            if($(this).find('input[name=field]').is(':checked')){
+
+                var field = $(this).find('input[name=field]').val(),
+                    comment = $(this).find('input[name=comment]').val(),
+                    validate = [];
+                $(this).find('td:last-child input[type=text]').each(function(i){
+                    validate[i] =$(this).val();
+                });
+
+                fields[field] = {
+                    comment : comment,
+                    validate : validate
+                };
+            }
+        });
+
+        getSettingField(fields)
+    }
+
+    function getSettingField(fields){
+        var space = '    ',
+            code = space+'protected $rule = [\n',
+            hasMobile = false;
+        for(var item in fields){
+            var val = fields[item],
+                msg = getCommentMsg(val.comment,val.validate);
+                var validate = val.validate.join('|');
+                if(validate.indexOf('isMobile')!=-1){
+                    hasMobile = true;
+                }
+                code += space+space+"['"+item+"','"+val.validate.join('|')+"','"+msg+"'],\n";
+
+        }
+
+        code += space+'];\n\n';
+
+        if(hasMobile){
+            code += space+'protected function isPhoneNum($value){\n' +
+                '        return preg_match(\'/^(13[0-9]|14[0-9]|15[0-9]|166|17[0-9]|18[0-9]|19[8|9])\\d{8}$/\',$value)?true:false;\n' +
+                '    }';
+        }
+
+
+        var len = code.split("\n").length+3;
+        $('#code').val(code).attr('rows',len);
+
+    }
+
+    function getCommentMsg(field,validate){
+        var msg = '';
+            $(validate).each(function(){
+
+                var res = getMsg(field,this);
+                msg += res+'|';
+            });
+
+        return msg.substring(0, msg.lastIndexOf('|'));
+    }
+
+
+
+    function getMsg(field,validate){
+        //console.log(validate);
+        var vali = validate,
+            index = validate;
+
+        if(validate.indexOf(':') !== -1){
+            var str = validate.split(":");
+            vali = str[1];
+            index = str[0];
+        }
+        //console.log(val);
+        var msg = {
+            integer:field+'必须为整数',
+            number:field+'必须为数字',
+            require:'请输入'+field,
+            float:field+'必须为数字',
+            boolean:field+'的值不合法',
+            email:field+'格式不合法',
+            array:field+'的值不合法',
+            accepted:field+'的值必须为yes,no,1,0的一个',
+            date:field+'必须为日期',
+            alpha:field+'必须为字母',
+            alphaNum:field+'必须为字母和数字',
+            alphaDash:field+'必须为字母和数字和-_',
+            chs:field+'必须为汉字',
+            chsAlpha:field+'必须为汉字、字母',
+            chsAlphaNum:field+'必须为汉字、字母、数字',
+            chsDash:field+'必须为汉字、字母、数字和下划线_及破折号-',
+            activeUrl:field+'格式不合法',
+            url:field+'格式不合法',
+            ip:field+'格式不合法',
+            dateFormat:field+'不合法',
+            in:field+'必须在'+vali,
+            notIn:field+'不能为'+vali,
+            between:field+'必须在'+vali+'之间',
+            notBetween:field+'必须不在'+vali+'之间',
+            length:field+'长度必须在'+vali+'之间',
+            max:field+'不能大于'+vali,
+            min:field+'不能小于'+vali,
+            after:field+'必须在'+vali+'之后',
+            before:field+'必须在'+vali+'之前',
+            expire:field+'必须在'+vali+'之内',
+            allowIp:field+'IP不在合法范围',
+            denyIp:field+'禁止访问',
+            confirm:field+'与'+vali+'不一致',
+            different:field+'与'+vali+'一致',
+            eq:field+'必须等于'+vali,
+            egt:field+'必须大于等于'+vali,
+            gt:field+'必须大于'+vali,
+            elt:field+'必须小于等于'+vali,
+            lt:field+'必须小于'+vali,
+            filter:field+'格式不合法',
+            behavior:field+'行为不合法',
+            unique:field+'已存在',
+            requireIf:field+'不能为空',
+            isMobile:field+'格式不合法'
+        };
+        //console.log(msg);
+        return msg[index];
+
+    }
+
+
+
+
+
+    $(document).on('click','tr a.reduce',function () {
+        $(this).parents('span').remove();
+    });
+    $(document).on('click','tr a.add',function () {
+        var clone = $(this).parents('span').clone();
+        $(this).parents('span').after(clone);
+    });
+
+    $(document).on('click','#setting th input[name=all]',function () {
+        //
+        var flag = $(this).is(':checked')?true:false;
+        $('#setting td input[type=checkbox]').each(function(){
+            $(this).attr("checked", flag);
+        });
+    });
+
+    $(document).on('click','#setting td input[type=checkbox]',function () {
+        //
+        var flag = true;
+        $(this).each(function(){
+            if(!$(this).is(':checked')){
+                flag = false;
+                $('#setting th input[name=all]').attr('checked',false);
+                return;
+            }else{
+                $('#setting th input[name=all]').attr('checked',tr);
+            }
+
+
+        });
+
+    });
+</script>
